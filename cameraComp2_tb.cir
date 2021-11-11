@@ -1,0 +1,84 @@
+* Include
+*----------------------------------------------------------------
+.include ../../models/ptm_130_ngspice.spi
+.include ../../lib/SUN_TR_GF130N.spi
+
+*----------------------------------------------------------------
+* Options
+*----------------------------------------------------------------
+.option TNOM=27 GMIN=1e-15 reltol=1e-6 abstol=1e-6
+.param TRF = 10n
+.param TCLK = 100n
+.param C_ERASE = 5
+.param C_EXPOSE = 255
+.param C_CONVERT = 255
+.param C_READ = 5
+
+*- Pulse Width of control signals
+.param PW_ERASE =  {(C_ERASE +1)*TCLK}
+.param PW_EXPOSE =  {(C_EXPOSE +1)*TCLK}
+.param PW_CONVERT =  {(C_CONVERT +1)*TCLK}
+.param PW_READ =  {(C_READ +1)*TCLK}
+
+*- Delay of control signals
+.param TD_ERASE = {TCLK }
+.param TD_EXPOSE = {TD_ERASE + PW_ERASE + TCLK}
+.param TD_CONVERT = {TD_EXPOSE + PW_EXPOSE + TCLK}
+.param TD_READ = {TD_CONVERT + PW_CONVERT + TCLK}
+.param PERIOD = {TD_READ + PW_READ + TCLK}
+
+*- Analog parameters
+.param VDD = 1.5
+.param VADC_MIN = 0.5
+.param VADC_MAX = 1.1
+.param VADC_REF = {VADC_MAX - VADC_MIN}
+.param VADC_LSB = {VADC_REF/256}
+
+*- Control signals
+VERASE ERASE 0 dc 0 pulse (0 VDD TD_ERASE TRF TRF PW_ERASE PERIOD)
+VEXPOSE EXPOSE 0 dc 0 pulse (0 VDD TD_EXPOSE TRF TRF PW_EXPOSE PERIOD)
+VCONVERT CONVERT 0 dc 0 pulse (0 VDD TD_CONVERT TRF TRF PW_CONVERT PERIOD)
+VREAD READ 0 dc 0 pulse (0 VDD TD_READ TRF TRF PW_READ PERIOD)
+
+*- ADC related sources
+VREF VREF 0 DC VADC_REF
+VMAX VMAX 0 DC VADC_MAX
+VRESET VRESET VMAX DC 0
+VMIN VMIN 0 DC VADC_MIN
+
+
+*Control signals
+VDD VDD VSS dc 1.5
+VSS VSS 0 dc 0
+*VCOMP_IN COMP_IN VSS dc 0 pwl(0 1.1 32us 0.58 42us 0.58 48us 1.4 57us 0.9)
+VCOMP_IN COMP_IN VSS dc 0 PWL(0 1.1 26.42us 0.83 53us 0.788 53us 1.1 79us 0.83) //Bare tilnærmet oppførsel for å illustrere poenget
+*VCOMP_IN COMP_IN VSS dc 0 sin(1 0.4 50000 0 0)    
+
+*Bias
+IPB1 0 VBN1 dc 1u
+XMNB0 VBN1 VBN1 VSS VSS NCHCM2
+
+BR1 0 VRAMP I = V(CONVERT)*( 1n*(VADC_MAX - VADC_MIN)/PW_CONVERT)
+CR1 VRAMP 0 1n ic=0
+
+* SPICE freaks out if any node only have current sources and capacitors on it. so insert a resistor to ground
+R1 VRAMP 0 1T
+
+BR2 VRAMP VMIN I=V(ERASE)*V(VRAMP,VMIN)/100
+
+
+.include cameraCircuit.cir
+XDUT VCMP_OUT COMP_IN VRAMP VBN1 VDD VSS COMP
+
+.control
+set color0=white
+set color1=black
+unset askquit
+tran 1n 60u
+*plot V(ERASE) V(EXPOSE) V(CONVERT) V(READ)
+*plot V(VRAMP) V(CONVERT) V(ERASE)
+*plot V(DO)
+plot V(COMP_IN) V(VRAMP) V(CONVERT) V(VCMP_OUT) V(ERASE)
+*VBN1 konstant med verdi på litt over 0.2
+.endc
+.end

@@ -1,17 +1,23 @@
 
-ps:
-	iverilog -g2012 -o pixelSensor -c pixelSensor.fl
-	vvp -n pixelSensor
+plt=python3 ../../py/plot.py
 
-psfsm:
-	iverilog -g2012 -o pixelState -c pixelState.fl
-	vvp -n pixelState
+camComp:
+	${MAKE} ngspice	 TB=cameraComp2_tb
 
+camMem:
+	${MAKE} ngspice	 TB=cameraMemory_tb
 
-ysfsm:
-	yosys pixelState.ys
-	dot pixelState.dot -Tpng > pixelState.png
+camMcell:
+	${MAKE} ngspice	 TB=cameraMemcell_tb
 
-pa:
-	iverilog -g2012 -o pixelArray -c pixelArray.fl
-	vvp -n pixelArray
+camMcell2:
+	${MAKE} ngspice	 TB=cameraMemcell2_tb
+
+camSens:
+	${MAKE} ngspice	 TB=cameraSensor_tb
+
+camCir:
+	${MAKE} ngspice	 TB=cameraCircuit_tb
+
+ngspice:
+	ngspice -a ${TB}.cir

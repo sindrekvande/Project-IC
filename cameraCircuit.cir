@@ -1,0 +1,139 @@
+* Pixel sensor
+**********************************************************************
+**        Copyright (c) 2021 Carsten Wulff Software, Norway
+** *******************************************************************
+** Created       : wulff at 2021-7-22
+** *******************************************************************
+**  The MIT License (MIT)
+**
+**  Permission is hereby granted, free of charge, to any person obtaining a copy
+**  of this software and associated documentation files (the "Software"), to deal
+**  in the Software without restriction, including without limitation the rights
+**  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+**  copies of the Software, and to permit persons to whom the Software is
+**  furnished to do so, subject to the following conditions:
+**
+**  The above copyright notice and this permission notice shall be included in all
+**  copies or substantial portions of the Software.
+**
+**  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+**  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+**  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+**  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+**  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+**  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+**  SOFTWARE.
+**
+**********************************************************************
+
+* Innsignaler? 
+.SUBCKT PIXEL_SENSOR VBN1 VRAMP VRESET ERASE EXPOSE READ
++ DATA_7 DATA_6 DATA_5 DATA_4 DATA_3 DATA_2 DATA_1 DATA_0 VDD VSS
+
+
+XS1 VRESET VSTORE ERASE EXPOSE VDD VSS SENSOR
+
+XC1 VCMP_OUT VSTORE VRAMP VBN1 VDD VSS COMP
+
+XM1 READ VCMP_OUT DATA_7 DATA_6 DATA_5 DATA_4 DATA_3 DATA_2 DATA_1 DATA_0 VDD VSS MEMORY
+
+.ENDS
+*///////////////////////////////////////////////////////////////////
+
+*///////////////////////////////////////////////////////////////////
+* Trenger i utgangspunktet ikke å endre memory-delen...
+* Memory module:
+
+.SUBCKT MEMORY READ VCMP_OUT
++ DATA_7 DATA_6 DATA_5 DATA_4 DATA_3 DATA_2 DATA_1 DATA_0 VDD VSS
+
+XM1 VCMP_OUT DATA_0 READ VSS MEMCELL
+XM2 VCMP_OUT DATA_1 READ VSS MEMCELL
+XM3 VCMP_OUT DATA_2 READ VSS MEMCELL
+XM4 VCMP_OUT DATA_3 READ VSS MEMCELL
+XM5 VCMP_OUT DATA_4 READ VSS MEMCELL
+XM6 VCMP_OUT DATA_5 READ VSS MEMCELL
+XM7 VCMP_OUT DATA_6 READ VSS MEMCELL
+XM8 VCMP_OUT DATA_7 READ VSS MEMCELL
+
+.ENDS
+
+.SUBCKT MEMCELL CMP DATA READ VSS
+M1 VG CMP DATA VSS nmos  w=0.2u  l=0.13u
+M2 DATA READ DMEM VSS nmos  w=0.4u  l=0.13u
+M3 DMEM VG VSS VSS nmos  w=1u  l=0.13u
+C1 VG VSS 1p
+.ENDS
+*///////////////////////////////////////////////////////////////////
+
+*///////////////////////////////////////////////////////////////////
+* Sensor module:
+.SUBCKT SENSOR VRESET VSTORE ERASE EXPOSE VDD VSS
+
+* Capacitor to model gate-source capacitance (good, modelerer transistor koblet til ground (figur 4))
+C1 VSTORE VSS 100f
+*Rleak VSTORE VSS 100T (Er blitt fjernet)
+
+* Switch to reset voltage on capacitor (not good, må byttet til faktisk nmos, nmos koblet til reset V og pixel reset)
+* M1 d g s b nmos W=0.5u L=0.15u
+* M2 d g s b pmos W=0.5u L=0.15u
+* BR1 VRESET VSTORE I=V(ERASE)*V(VRESET,VSTORE)/1k
+M1 VRESET ERASE VSTORE VSS nmos W=0.5u L=0.15u
+
+* Switch to expose pixel (not good, nmos koblet til TX (?))
+* BR2 VPG VSTORE I=V(EXPOSE)*V(VSTORE,VPG)/1k
+M2 VPG EXPOSE VSTORE VSS nmos W=0.5u L=0.15u
+
+* Model photocurrent (good, enn så lenge)
+Rphoto VPG VSS 1G
+.ENDS
+*///////////////////////////////////////////////////////////////////
+
+*///////////////////////////////////////////////////////////////////
+* Comparator module: må kanskje ta med VBN1 i signalene?????
+.SUBCKT COMP VCMP_OUT VSTORE VRAMP VBN1 VDD VSS
+
+* Model comparator (not good)
+*BC1 VCMP_OUT VSS V = ((atan(100000*(V(VSTORE) - V(VRAMP)))) + 1.58)/3.14*1.5
+
+* Part I
+* Transistor middle left
+M3 MGATE VSTORE BDRAIN VSS nmos W=0.5u L=0.15u
+
+* Transistor bottom 
+M4 BDRAIN VBN1 VSS VSS nmos W=0.5u L=0.15u
+
+* Transistor top left
+M5 MGATE MGATE VDD VDD pmos W={3.86*0.5u} L=0.15u
+
+* Transistor top rigth
+M6 RDRAIN MGATE VDD VDD pmos W={3.86*0.5u} L=0.15u
+
+* Transistor middle right
+M7 RDRAIN VRAMP BDRAIN VSS nmos W=0.5u L=0.15u
+
+*//////////////////////////////
+* Part II (inverter pair)
+
+*pmos topp left
+M8 INODE RDRAIN VDD VDD pmos W={3.86*0.5u} L=0.15u
+
+* Transistor bottom left
+M9 INODE VBN1 VSS VSS nmos W=0.5u L=0.15u
+
+* Transistor top right
+M10 VCMP_OUT INODE VDD VDD pmos W={3.86*0.5u} L=0.15u
+
+* Transistor bottom right
+M11 VCMP_OUT INODE VSS VSS nmos W=0.5u L=0.15u
+
+*////////////////////////////////////////////////////
+*Viktige momenter:
+*Vi ønsker å lese av om transistorene er i strong/weak inversion, kan dermed printe spenningen mellom to noder slik(ish):
+*print v(spenning node1) - v(spenning node2)
+*show all (for å display'e alle verdier for div komponenter, som f.eks. Vth)
+*Kan dermed finne Veff, og 
+*////////////////////////////////////////////////////
+
+.ENDS
+    
